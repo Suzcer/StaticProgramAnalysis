@@ -1,0 +1,37 @@
+digraph G {
+  node [shape=box,style=filled,color=".3 .2 1.0",];
+  "0" [label="Entry<Array: int sum(int[])>",];
+  "1" [label="0: result = 0",];
+  "2" [label="1: i = 0",];
+  "3" [label="2: nop",];
+  "4" [label="3: temp$0 = arr.length",];
+  "5" [label="4: if (i < temp$0) goto 6",];
+  "6" [label="5: goto 13",];
+  "7" [label="6: nop",];
+  "8" [label="7: temp$4 = arr[i]",];
+  "9" [label="8: result = result + temp$4",];
+  "10" [label="9: nop",];
+  "11" [label="10: %intconst0 = 1",];
+  "12" [label="11: i = i + %intconst0",];
+  "13" [label="12: goto 2",];
+  "14" [label="13: nop",];
+  "15" [label="14: return result",];
+  "16" [label="Exit<Array: int sum(int[])>",];
+  "0" -> "1" [label="ENTRY",];
+  "1" -> "2" [label="FALL_THROUGH",];
+  "2" -> "3" [label="FALL_THROUGH",];
+  "3" -> "4" [label="FALL_THROUGH",];
+  "4" -> "5" [label="FALL_THROUGH",];
+  "5" -> "7" [label="IF_TRUE",];
+  "5" -> "6" [label="IF_FALSE",];
+  "6" -> "14" [label="GOTO",];
+  "7" -> "8" [label="FALL_THROUGH",];
+  "8" -> "9" [label="FALL_THROUGH",];
+  "9" -> "10" [label="FALL_THROUGH",];
+  "10" -> "11" [label="FALL_THROUGH",];
+  "11" -> "12" [label="FALL_THROUGH",];
+  "12" -> "13" [label="FALL_THROUGH",];
+  "13" -> "3" [label="GOTO",];
+  "14" -> "15" [label="FALL_THROUGH",];
+  "15" -> "16" [label="RETURN",];
+}

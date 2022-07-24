@@ -1,0 +1,17 @@
+optionsFile: null
+printHelp: false
+javaVersion: 18
+prependJVM: true
+classPath: src/test/resources/dataflow/livevar
+mainClass: BranchLoop
+worldBuilderClass: pascal.taie.frontend.soot.SootWorldBuilder
+preBuildIR: false
+scope: app
+nativeModel: true
+dumpClasses: false
+planFile: null
+analyses:
+  livevar: strongly:false
+  process-result: "analyses:[livevar];action:compare;file:src\\test\\resources\\dataflow\\\
+    livevar\\BranchLoop-livevar-expected.txt"
+onlyGenPlan: false
