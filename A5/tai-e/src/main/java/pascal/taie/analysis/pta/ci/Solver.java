@@ -31,23 +31,18 @@ import pascal.taie.analysis.graph.callgraph.DefaultCallGraph;
 import pascal.taie.analysis.graph.callgraph.Edge;
 import pascal.taie.analysis.pta.core.heap.HeapModel;
 import pascal.taie.analysis.pta.core.heap.Obj;
+import pascal.taie.ir.IR;
 import pascal.taie.ir.exp.InvokeExp;
 import pascal.taie.ir.exp.Var;
 import pascal.taie.ir.proginfo.MethodRef;
-import pascal.taie.ir.stmt.Copy;
-import pascal.taie.ir.stmt.Invoke;
-import pascal.taie.ir.stmt.LoadArray;
-import pascal.taie.ir.stmt.LoadField;
-import pascal.taie.ir.stmt.New;
-import pascal.taie.ir.stmt.StmtVisitor;
-import pascal.taie.ir.stmt.StoreArray;
-import pascal.taie.ir.stmt.StoreField;
+import pascal.taie.ir.stmt.*;
 import pascal.taie.language.classes.ClassHierarchy;
 import pascal.taie.language.classes.JMethod;
 import pascal.taie.util.AnalysisException;
 import pascal.taie.language.type.Type;
 
 import java.util.List;
+import java.util.Set;
 
 class Solver {
 
@@ -97,6 +92,33 @@ class Solver {
      */
     private void addReachable(JMethod method) {
         // TODO - finish me
+
+        //TODO 静态方法
+        if(!callGraph.contains(method)){
+            callGraph.addReachableMethod(method);
+
+            List<Stmt> Sm = method.getIR().getStmts();
+            for(Stmt stmt:Sm){
+                if(stmt instanceof New newStmt){
+                    Var lVar = newStmt.getLValue();
+                    VarPtr varPtr=new VarPtr(lVar);
+                    Obj obj = heapModel.getObj(newStmt);
+                    PointsToSet pointsToSet=new PointsToSet();
+                    pointsToSet.addObject(obj);
+                    workList.addEntry(varPtr,pointsToSet);
+
+                }else if(stmt instanceof Copy copyStmt){
+                    Var lVar = copyStmt.getLValue();
+                    Var rVal = copyStmt.getRValue();
+
+                    VarPtr lvarPtr=new VarPtr(lVar);
+                    VarPtr rvarPtr=new VarPtr(rVal);
+                    addPFGEdge(rvarPtr,lvarPtr);
+                }
+            }
+
+        }
+
     }
 
     /**
@@ -112,13 +134,53 @@ class Solver {
      */
     private void addPFGEdge(Pointer source, Pointer target) {
         // TODO - finish me
+
+        //如果PFG发生改变则 返回值为 true
+        if(pointerFlowGraph.addEdge(source, target)){
+            if(!source.getPointsToSet().isEmpty()){
+                workList.addEntry(target,source.getPointsToSet());
+            }
+        }
     }
 
     /**
      * Processes work-list entries until the work-list is empty.
+     *  PTA-FD P125
      */
     private void analyze() {
         // TODO - finish me
+
+        while (!workList.isEmpty()){
+            WorkList.Entry entry = workList.pollEntry();
+            Pointer pointer = entry.pointer();
+
+            PointsToSet delta = propagate(pointer, entry.pointsToSet());
+            if(pointer instanceof VarPtr varPtr){
+                List<StoreField> storeFields = varPtr.getVar().getStoreFields();
+                List<LoadField> loadFields = varPtr.getVar().getLoadFields();
+
+                //外层 foreach
+                for(Obj obj:delta){
+
+                    //内层 foreach
+                    for(StoreField storeField:storeFields){
+                        Var rValue = storeField.getRValue();
+                        VarPtr ptr=new VarPtr(rValue);
+
+                        //如何表示 oi.f ?
+
+
+                    }
+
+                    //内层 foreach
+                    for(LoadField loadField:loadFields){
+
+                    }
+
+                    processCall(varPtr.getVar(),obj);
+                }
+            }
+        }
     }
 
     /**
@@ -127,7 +189,26 @@ class Solver {
      */
     private PointsToSet propagate(Pointer pointer, PointsToSet pointsToSet) {
         // TODO - finish me
-        return null;
+
+        //计算差集的笨方法
+        PointsToSet delta=new PointsToSet();
+        for(Obj obj:pointer.getPointsToSet()){
+            if(!pointsToSet.contains(obj))
+                delta.addObject(obj);
+        }
+
+        if(!delta.isEmpty()){
+            for(Obj obj:delta){
+                pointer.getPointsToSet().addObject(obj);
+            }
+
+            Set<Pointer> succs = pointerFlowGraph.getSuccsOf(pointer);
+            for(Pointer ptr:succs){
+                workList.addEntry(ptr,delta);
+            }
+        }
+
+        return delta;
     }
 
     /**
@@ -138,6 +219,43 @@ class Solver {
      */
     private void processCall(Var var, Obj recv) {
         // TODO - finish me
+
+        PointsToSet pointsToSet=new PointsToSet();
+        pointsToSet.addObject(recv);
+
+        List<Invoke> invokes = var.getInvokes();
+        for(Invoke invoke:invokes){
+
+            JMethod jMethod = resolveCallee(recv, invoke);      //dispatch 的方法
+            VarPtr varPtr=new VarPtr(jMethod.getIR().getThis());
+            workList.addEntry(varPtr,pointsToSet);
+
+            if(callGraph.addEdge(new Edge<>(CallKind.VIRTUAL, invoke, jMethod))){
+                callGraph.addReachableMethod(jMethod);
+
+                List<Var> params = jMethod.getIR().getParams();
+                List<Var> args = invoke.getInvokeExp().getArgs();
+
+                //a表示args(传递参数)，p表示param(接收参数)
+                for(int i=0;i<params.size();i++){
+                    VarPtr paramPtr=new VarPtr(params.get(i));
+                    VarPtr argPtr=new VarPtr(args.get(i));
+
+                    addPFGEdge(argPtr,paramPtr);
+                }
+
+                List<Var> returnVars = jMethod.getIR().getReturnVars();
+                Var lValue = invoke.getLValue();
+                VarPtr lPtr=new VarPtr(lValue);
+
+                for(Var each:returnVars){
+                    VarPtr tmp=new VarPtr(each);
+
+                    addPFGEdge(tmp,lPtr);
+                }
+            }
+        }
+
     }
 
     /**

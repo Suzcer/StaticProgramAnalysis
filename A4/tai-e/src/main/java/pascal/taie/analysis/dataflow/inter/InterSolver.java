@@ -24,11 +24,16 @@ package pascal.taie.analysis.dataflow.inter;
 
 import pascal.taie.analysis.dataflow.fact.DataflowResult;
 import pascal.taie.analysis.graph.icfg.ICFG;
+import pascal.taie.analysis.graph.icfg.ICFGEdge;
+import pascal.taie.language.classes.ClassHierarchy;
 import pascal.taie.util.collection.SetQueue;
 
+import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Solver for inter-procedural data-flow analysis.
@@ -58,11 +63,53 @@ class InterSolver<Method, Node, Fact> {
         return result;
     }
 
+    /**
+     * 对于 entryMethods ，进行边界的初始化
+     * 对于 非 entryMethods ，进行一般初始化
+     */
     private void initialize() {
         // TODO - finish me
+
+        icfg.entryMethods().forEach(entry_method->{
+            Node entry_node = icfg.getEntryOf(entry_method);
+            result.setInFact(entry_node, analysis.newBoundaryFact(entry_node));
+            result.setOutFact(entry_node, analysis.newBoundaryFact(entry_node));
+        });
+
+        icfg.forEach(node -> {
+            if (icfg.entryMethods().noneMatch(entry_method -> node.equals(icfg.getEntryOf(entry_method)))) {
+                result.setInFact(node, analysis.newInitialFact());
+                result.setOutFact(node, analysis.newInitialFact());
+            }
+        });
+
+
     }
 
+    /**
+     * TODO 不求甚解
+     */
     private void doSolve() {
         // TODO - finish me
+
+        workList=new ArrayDeque<>();
+
+        for(Node node: icfg) workList.add(node);
+
+        while (!workList.isEmpty()){
+            Node node = workList.poll();
+            Fact in = result.getInFact(node);
+            Fact out = result.getOutFact(node);
+            for (ICFGEdge<Node> e : icfg.getInEdgesOf(node)) {
+                analysis.meetInto(analysis.transferEdge(e, result.getOutFact(e.getSource())), in);
+            }
+            if (analysis.transferNode(node, in, out)) {
+                for (Node suc : icfg.getSuccsOf(node)){
+                    if (!workList.contains(suc)) {
+                        workList.add(suc);
+                    }
+                }
+            }
+        }
     }
 }

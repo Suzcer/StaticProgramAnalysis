@@ -84,7 +84,6 @@ public class ConstantPropagation extends
     public void meetInto(CPFact fact, CPFact target) {
         // TODO - finish me
 
-        //对target中的值遍历一遍，每个值在fact中找到对应的，进行meetValue
         //有个问题，如果是 fact 中特有的 Value 怎么解决？
         for (Var var : fact.keySet()) {
             target.update(var, meetValue(fact.get(var), target.get(var)));
